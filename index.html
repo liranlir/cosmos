@@ -1,0 +1,707 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>手势粒子星球</title>
+  <style>
+    :root {
+      --panel: rgba(10, 14, 28, 0.58);
+      --text: rgba(255, 255, 255, 0.92);
+      --muted: rgba(255, 255, 255, 0.62);
+      --accent: #8bd3ff;
+    }* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 30%, #182548 0%, #050713 54%, #01020a 100%);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  touch-action: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#video {
+  position: fixed;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: min(34vw, 150px);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  transform: scaleX(-1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+  opacity: 0.32;
+  z-index: 5;
+  background: #050713;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
+}
+
+#hud {
+  position: fixed;
+  left: max(14px, env(safe-area-inset-left));
+  top: max(14px, env(safe-area-inset-top));
+  z-index: 6;
+  width: min(92vw, 390px);
+  padding: 14px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 22px;
+  background: var(--panel);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.28);
+  user-select: none;
+}
+
+#hud h1 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+#hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+#status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+#dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--accent);
+  box-shadow: 0 0 18px var(--accent);
+}
+
+#loveLine {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 7;
+  width: min(88vw, 560px);
+  transform: translate(-50%, -50%) scale(0.96);
+  opacity: 0;
+  pointer-events: none;
+  text-align: center;
+  font-size: clamp(24px, 7vw, 44px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-shadow: 0 0 24px rgba(139, 211, 255, 0.65), 0 0 80px rgba(224, 179, 255, 0.35);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+#loveLine.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+#scanLine {
+  position: fixed;
+  left: 50%;
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 92px));
+  z-index: 7;
+  transform: translateX(-50%);
+  width: min(88vw, 460px);
+  padding: 12px 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 12, 26, 0.48);
+  backdrop-filter: blur(18px);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+#start {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 35%, rgba(35, 70, 140, 0.72), rgba(2, 4, 14, 0.95) 66%);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+#start.hidden {
+  opacity: 0;
+  transform: scale(1.04);
+  pointer-events: none;
+}
+
+.start-card {
+  width: min(92vw, 430px);
+  padding: 26px;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 12, 26, 0.7);
+  box-shadow: 0 30px 120px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(22px);
+  text-align: center;
+}
+
+.start-card h2 {
+  margin: 0 0 10px;
+  font-size: 28px;
+}
+
+.start-card p {
+  margin: 0 0 20px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 22px;
+  color: #06111f;
+  background: linear-gradient(135deg, #a7f3ff, #8da8ff 54%, #e0b3ff);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  box-shadow: 0 16px 42px rgba(139, 211, 255, 0.25);
+}
+
+button:disabled {
+  opacity: 0.55;
+}
+
+#fallback {
+  margin-top: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+    <video id="video" playsinline muted autoplay></video>
+    <div id="loveLine">小小薪专属宇宙</div>
+    <div id="scanLine">检测到目标用户：小小薪｜正在加载专属宇宙</div><section id="hud">
+  <h1>GESTURE PLANET</h1>
+  <p id="hint">张开手：星球扩散｜捏合食指和拇指：收束｜左右移动手掌：旋转｜上下移动：改变视角</p>
+  <div id="status"><span id="dot"></span><span id="statusText">等待启动</span></div>
+</section>
+
+<div id="start">
+  <div class="start-card">
+    <h2>手势粒子星球</h2>
+    <p>点击启动后允许使用前置摄像头。所有识别都在浏览器本地运行，不会上传视频。</p>
+    <button id="startBtn" onclick="document.querySelector('#statusText').textContent='按钮已点击，脚本检查中'; this.textContent='正在检查脚本...'; setTimeout(()=>{ if(!window.cosmosModuleReady){ alert('主脚本没有成功加载。大概率是 CDN import 失败：Three.js 或 MediaPipe 没加载进来。'); } }, 800);">启动摄像头</button>
+    <div id="fallback">手机浏览器建议使用 Chrome / Safari，并通过 HTTPS 打开。</div>
+  </div>
+</div>
+
+  </div>  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+    import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+    window.cosmosModuleReady = true;
+    const canvas = document.querySelector("#scene");
+    const video = document.querySelector("#video");
+    const start = document.querySelector("#start");
+    const startBtn = document.querySelector("#startBtn");
+    const statusText = document.querySelector("#statusText");
+    const loveLine = document.querySelector("#loveLine");
+    const scanLine = document.querySelector("#scanLine");
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    const loveMessages = [
+      "你一伸手，宇宙就开始偏心。",
+      "今天也捕捉到一颗想见你的星球。",
+      "警告：检测到我又想你了。",
+      "你靠近一点，星球会更亮。",
+      "这不是普通星球，是我想见你的信号。"
+    ];
+
+    function showLoveLine(text, duration = 1800) {
+      loveLine.textContent = text;
+      loveLine.classList.add("show");
+      clearTimeout(showLoveLine.timer);
+      showLoveLine.timer = setTimeout(() => loveLine.classList.remove("show"), duration);
+    }
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050713, 0.08);
+
+    const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 8.3);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+
+    const planet = new THREE.Group();
+    scene.add(planet);
+
+    const particleCount = 9500;
+    const positions = new Float32Array(particleCount * 3);
+    const targets = new Float32Array(particleCount * 3);
+    const randoms = new Float32Array(particleCount * 3);
+    const textTargets = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+    const colors = new Float32Array(particleCount * 3);
+
+    const colorA = new THREE.Color("#80dfff");
+    const colorB = new THREE.Color("#f0d2ff");
+    const colorC = new THREE.Color("#6f8cff");
+
+    function makeTextTargets(text = "想见你") {
+      const c = document.createElement("canvas");
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      const w = 900;
+      const h = 320;
+      c.width = w;
+      c.height = h;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "white";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "900 150px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+      ctx.fillText(text, w / 2, h / 2);
+
+      const img = ctx.getImageData(0, 0, w, h).data;
+      const samples = [];
+      for (let y = 0; y < h; y += 5) {
+        for (let x = 0; x < w; x += 5) {
+          if (img[(y * w + x) * 4 + 3] > 80) samples.push([x, y]);
+        }
+      }
+
+      // 某些安卓浏览器在 canvas 里渲染中文字体可能失败，samples 会变成 0，
+      // 这会导致整段 JS 中断，表现就是按钮怎么点都没反应。
+      // 这里加一个兜底：如果中文采样失败，就生成一条发光粒子带。
+      if (samples.length === 0) {
+        for (let i = 0; i < 2600; i++) {
+          const t = i / 2600;
+          const x = 120 + t * 660;
+          const y = h / 2 + Math.sin(t * Math.PI * 8) * 38 + (Math.random() - 0.5) * 22;
+          samples.push([x, y]);
+        }
+      }
+
+      for (let i = 0; i < particleCount; i++) {
+        const [x, y] = samples[i % samples.length];
+        const idx = i * 3;
+        textTargets[idx] = (x / w - 0.5) * 6.2 + (Math.random() - 0.5) * 0.025;
+        textTargets[idx + 1] = -(y / h - 0.5) * 2.15 + (Math.random() - 0.5) * 0.025;
+        textTargets[idx + 2] = (Math.random() - 0.5) * 0.38;
+      }
+    }
+
+    for (let i = 0; i < particleCount; i++) {
+      const u = Math.random();
+      const v = Math.random();
+      const theta = Math.PI * 2 * u;
+      const phi = Math.acos(2 * v - 1);
+
+      const latitudeBand = 0.15 * Math.sin(phi * 9 + Math.random() * 0.6);
+      const surfaceNoise = 0.08 * Math.sin(theta * 6) * Math.cos(phi * 4);
+      const radius = 2.15 + latitudeBand + surfaceNoise + Math.random() * 0.08;
+
+      const x = radius * Math.sin(phi) * Math.cos(theta);
+      const y = radius * Math.cos(phi);
+      const z = radius * Math.sin(phi) * Math.sin(theta);
+
+      const idx = i * 3;
+      targets[idx] = x;
+      targets[idx + 1] = y;
+      targets[idx + 2] = z;
+
+      const burst = 1.5 + Math.random() * 3.5;
+      randoms[idx] = x * burst + (Math.random() - 0.5) * 1.7;
+      randoms[idx + 1] = y * burst + (Math.random() - 0.5) * 1.7;
+      randoms[idx + 2] = z * burst + (Math.random() - 0.5) * 1.7;
+
+      positions[idx] = x * (0.2 + Math.random() * 1.5);
+      positions[idx + 1] = y * (0.2 + Math.random() * 1.5);
+      positions[idx + 2] = z * (0.2 + Math.random() * 1.5);
+
+      sizes[i] = 0.018 + Math.random() * 0.035;
+
+      const mixed = colorA.clone().lerp(Math.random() > 0.45 ? colorB : colorC, Math.random());
+      colors[idx] = mixed.r;
+      colors[idx + 1] = mixed.g;
+      colors[idx + 2] = mixed.b;
+    }
+
+    makeTextTargets("想见你");
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+
+    const material = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true,
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: Math.min(devicePixelRatio, 2) }
+      },
+      vertexShader: `
+        attribute float size;
+        varying vec3 vColor;
+        uniform float uTime;
+        uniform float uPixelRatio;
+
+        void main() {
+          vColor = color;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          float pulse = 0.75 + 0.25 * sin(uTime * 2.2 + position.x * 3.0 + position.y * 2.0);
+          gl_PointSize = size * 880.0 * uPixelRatio * pulse / -mvPosition.z;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        void main() {
+          vec2 p = gl_PointCoord - vec2(0.5);
+          float d = length(p);
+          float alpha = smoothstep(0.5, 0.0, d);
+          alpha *= alpha;
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `
+    });
+
+    const points = new THREE.Points(geometry, material);
+    planet.add(points);
+
+    const ringGeometry = new THREE.BufferGeometry();
+    const ringCount = 1800;
+    const ringPositions = new Float32Array(ringCount * 3);
+    const ringColors = new Float32Array(ringCount * 3);
+    for (let i = 0; i < ringCount; i++) {
+      const angle = (i / ringCount) * Math.PI * 2;
+      const radius = 3.0 + Math.random() * 0.62;
+      const idx = i * 3;
+      ringPositions[idx] = Math.cos(angle) * radius;
+      ringPositions[idx + 1] = (Math.random() - 0.5) * 0.08;
+      ringPositions[idx + 2] = Math.sin(angle) * radius * 0.36;
+      const c = colorA.clone().lerp(colorB, Math.random());
+      ringColors[idx] = c.r;
+      ringColors[idx + 1] = c.g;
+      ringColors[idx + 2] = c.b;
+    }
+    ringGeometry.setAttribute("position", new THREE.BufferAttribute(ringPositions, 3));
+    ringGeometry.setAttribute("color", new THREE.BufferAttribute(ringColors, 3));
+
+    const ringMaterial = new THREE.PointsMaterial({
+      size: 0.026,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const ring = new THREE.Points(ringGeometry, ringMaterial);
+    ring.rotation.x = 0.55;
+    ring.rotation.z = -0.22;
+    planet.add(ring);
+
+    const starsGeometry = new THREE.BufferGeometry();
+    const starCount = 900;
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const idx = i * 3;
+      starPositions[idx] = (Math.random() - 0.5) * 38;
+      starPositions[idx + 1] = (Math.random() - 0.5) * 38;
+      starPositions[idx + 2] = -6 - Math.random() * 26;
+    }
+    starsGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+    const stars = new THREE.Points(
+      starsGeometry,
+      new THREE.PointsMaterial({ size: 0.018, color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false })
+    );
+    scene.add(stars);
+
+    const hand = {
+      active: false,
+      x: 0.5,
+      y: 0.5,
+      pinch: 0,
+      openness: 0,
+      targetScale: 1,
+      targetBurst: 0.08,
+      targetRotX: 0,
+      targetRotY: 0
+    };
+
+    let handLandmarker = null;
+    let lastVideoTime = -1;
+    let manualFallback = false;
+    let textMode = 0;
+    let textModeTarget = 0;
+    let lastOpenState = false;
+    let lastPinchState = false;
+    let lastWaveTime = 0;
+    let lastTextTime = 0;
+
+    function distance(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dz = (a.z || 0) - (b.z || 0);
+      return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    function updateGesture(landmarks) {
+      if (!landmarks || !landmarks.length) {
+        hand.active = false;
+        statusText.textContent = manualFallback ? "触摸模式" : "未检测到手";
+        hand.targetBurst = lerp(hand.targetBurst, 0.08, 0.04);
+        hand.targetScale = lerp(hand.targetScale, 1, 0.04);
+        return;
+      }
+
+      const lm = landmarks[0];
+      const wrist = lm[0];
+      const thumbTip = lm[4];
+      const indexTip = lm[8];
+      const middleTip = lm[12];
+      const ringTip = lm[16];
+      const pinkyTip = lm[20];
+
+      hand.active = true;
+      hand.x = lerp(hand.x, 1 - wrist.x, 0.22);
+      hand.y = lerp(hand.y, wrist.y, 0.22);
+
+      const palmWidth = Math.max(distance(lm[5], lm[17]), 0.001);
+      const pinchRaw = distance(thumbTip, indexTip) / palmWidth;
+      const spreadRaw = (distance(indexTip, wrist) + distance(middleTip, wrist) + distance(ringTip, wrist) + distance(pinkyTip, wrist)) / palmWidth;
+
+      hand.pinch = lerp(hand.pinch, clamp(1 - (pinchRaw - 0.35) / 1.15, 0, 1), 0.18);
+      hand.openness = lerp(hand.openness, clamp((spreadRaw - 5.6) / 3.8, 0, 1), 0.16);
+
+      hand.targetScale = 0.82 + hand.openness * 0.78 - hand.pinch * 0.28;
+      hand.targetBurst = clamp(hand.openness * 1.35 - hand.pinch * 0.55, 0, 1.25);
+      hand.targetRotY = (hand.x - 0.5) * 2.2;
+      hand.targetRotX = (hand.y - 0.5) * 1.3;
+
+      const now = performance.now();
+      const openState = hand.openness > 0.62;
+      const pinchState = hand.pinch > 0.68;
+
+      if (openState && !lastOpenState) {
+        showLoveLine(loveMessages[Math.floor(Math.random() * loveMessages.length)]);
+        if (navigator.vibrate) navigator.vibrate(35);
+      }
+
+      if (pinchState && !lastPinchState) {
+        showLoveLine("星星已收进掌心。", 1500);
+        if (navigator.vibrate) navigator.vibrate([25, 45, 25]);
+      }
+
+      if (Math.abs(hand.x - 0.5) > 0.34 && now - lastWaveTime > 1400) {
+        lastWaveTime = now;
+        showLoveLine("换一颗更亮的星球给你。", 1400);
+      }
+
+      if (openState && !pinchState && now - lastTextTime > 4200) {
+        lastTextTime = now;
+        textModeTarget = 1;
+        showLoveLine("粒子正在写给你看。", 1400);
+        setTimeout(() => { textModeTarget = 0; }, 2600);
+      }
+
+      lastOpenState = openState;
+      lastPinchState = pinchState;
+
+      if (hand.pinch > 0.65) statusText.textContent = "捏合：收束星球";
+      else if (hand.openness > 0.58) statusText.textContent = "张手：粒子扩散 / 粒子成字";
+      else statusText.textContent = "手掌控制旋转";
+    }
+
+    async function startCameraAndHands() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("当前浏览器不支持 getUserMedia，或页面不是 HTTPS / localhost 环境");
+      }
+
+      startBtn.disabled = true;
+      startBtn.textContent = "正在启动...";
+      statusText.textContent = "请求前置摄像头权限";
+      scanLine.textContent = "正在请求前置摄像头权限";
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "user" },
+          width: { ideal: 720 },
+          height: { ideal: 960 }
+        }
+      });
+
+      video.srcObject = stream;
+      await video.play();
+
+      start.classList.add("hidden");
+      scanLine.textContent = "检测到目标用户：小小薪｜专属宇宙启动完成";
+      showLoveLine("今天也捕捉到一颗想见你的星球。", 2200);
+      statusText.textContent = "摄像头已启动，正在加载手势模型";
+
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      );
+
+      handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numHands: 1,
+        minHandDetectionConfidence: 0.55,
+        minHandPresenceConfidence: 0.55,
+        minTrackingConfidence: 0.55
+      });
+
+      statusText.textContent = "正在识别手势";
+      scanLine.textContent = "手势识别已启动｜张开手试试看";
+      requestAnimationFrame(detectHands);
+    }
+
+    function detectHands() {
+      if (video.readyState >= 2 && video.currentTime !== lastVideoTime && handLandmarker) {
+        lastVideoTime = video.currentTime;
+        const result = handLandmarker.detectForVideo(video, performance.now());
+        updateGesture(result.landmarks);
+      }
+      requestAnimationFrame(detectHands);
+    }
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        await startCameraAndHands();
+      } catch (error) {
+        console.error(error);
+        manualFallback = true;
+        start.classList.add("hidden");
+        statusText.textContent = "摄像头不可用，已切换触摸模式";
+        scanLine.textContent = "触摸模式｜按住屏幕让星球扩散";
+        showLoveLine("摄像头没打开，但宇宙还在。", 2200);
+      }
+    });
+
+    addEventListener("pointermove", (event) => {
+      if (!manualFallback && hand.active) return;
+      hand.x = event.clientX / innerWidth;
+      hand.y = event.clientY / innerHeight;
+      hand.targetRotY = (hand.x - 0.5) * 2.2;
+      hand.targetRotX = (hand.y - 0.5) * 1.3;
+    }, { passive: true });
+
+    addEventListener("pointerdown", () => {
+      if (!manualFallback && hand.active) return;
+      hand.targetBurst = 1.05;
+      hand.targetScale = 1.42;
+    }, { passive: true });
+
+    addEventListener("pointerup", () => {
+      if (!manualFallback && hand.active) return;
+      hand.targetBurst = 0.08;
+      hand.targetScale = 1;
+    }, { passive: true });
+
+    let currentBurst = 0;
+    let currentScale = 1;
+    const clock = new THREE.Clock();
+
+    function animate() {
+      const elapsed = clock.getElapsedTime();
+      material.uniforms.uTime.value = elapsed;
+
+      currentBurst = lerp(currentBurst, hand.targetBurst, 0.065);
+      currentScale = lerp(currentScale, hand.targetScale, 0.07);
+      textMode = lerp(textMode, textModeTarget, 0.065);
+
+      const pos = geometry.attributes.position.array;
+      for (let i = 0; i < particleCount; i++) {
+        const idx = i * 3;
+        const wave = 0.04 * Math.sin(elapsed * 2.3 + targets[idx] * 2.2 + targets[idx + 1] * 1.7);
+        const burst = currentBurst + wave;
+
+        const planetX = lerp(targets[idx], randoms[idx], burst);
+        const planetY = lerp(targets[idx + 1], randoms[idx + 1], burst);
+        const planetZ = lerp(targets[idx + 2], randoms[idx + 2], burst);
+
+        const tx = lerp(planetX, textTargets[idx], textMode);
+        const ty = lerp(planetY, textTargets[idx + 1], textMode);
+        const tz = lerp(planetZ, textTargets[idx + 2], textMode);
+
+        pos[idx] = lerp(pos[idx], tx, 0.055);
+        pos[idx + 1] = lerp(pos[idx + 1], ty, 0.055);
+        pos[idx + 2] = lerp(pos[idx + 2], tz, 0.055);
+      }
+      geometry.attributes.position.needsUpdate = true;
+
+      planet.scale.setScalar(currentScale);
+      planet.rotation.y += 0.0035 + hand.targetRotY * 0.006;
+      planet.rotation.x = lerp(planet.rotation.x, hand.targetRotX + 0.18 * Math.sin(elapsed * 0.35), 0.045);
+      ring.rotation.y += 0.004;
+      stars.rotation.y += 0.0008;
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    function resize() {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      material.uniforms.uPixelRatio.value = Math.min(devicePixelRatio, 2);
+    }
+
+    addEventListener("resize", resize);
+
+    statusText.textContent = "等待启动";
+    startBtn.disabled = false;
+    startBtn.textContent = "启动摄像头";
+    animate();
+  </script></body>
+</html>

@@ -210,6 +210,54 @@ button {
   line-height: 1.5;
 }
 
+#bootBox {
+  margin: 20px 0 18px;
+}
+
+#bootLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+#bootProgress {
+  position: relative;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 26px rgba(139, 211, 255, 0.08), 0 14px 36px rgba(0, 0, 0, 0.22);
+}
+
+#bootFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(139, 211, 255, 0.95), rgba(141, 168, 255, 0.95), rgba(224, 179, 255, 0.95));
+  box-shadow: 0 0 28px rgba(139, 211, 255, 0.42);
+  transition: width 0.12s linear;
+}
+
+#bootProgressText {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 16px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
   </style>
 </head>
 <body>
@@ -227,7 +275,14 @@ button {
   <div class="start-card">
     <h2>手势粒子星球</h2>
     <p>点击启动后允许使用前置摄像头。所有识别都在浏览器本地运行，不会上传视频。</p>
-    <button id="startBtn">启动摄像头</button>
+    <div id="bootBox">
+      <div id="bootLabel"><span>专属宇宙初始化</span><span id="bootPercent">0%</span></div>
+      <div id="bootProgress">
+        <div id="bootFill"></div>
+        <div id="bootProgressText">检测目标用户：小小薪</div>
+      </div>
+    </div>
+    <button id="startBtn" disabled>等待检测完成</button>
     <div id="fallback">手机浏览器建议使用 Chrome / Safari，并通过 HTTPS 打开。</div>
   </div>
 </div>
@@ -243,6 +298,9 @@ button {
     const statusText = document.querySelector("#statusText");
     const loveLine = document.querySelector("#loveLine");
     const scanLine = document.querySelector("#scanLine");
+    const bootFill = document.querySelector("#bootFill");
+    const bootPercent = document.querySelector("#bootPercent");
+    const bootProgressText = document.querySelector("#bootProgressText");
 
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
     const lerp = (a, b, t) => a + (b - a) * t;
@@ -252,6 +310,40 @@ button {
       loveLine.classList.add("show");
       clearTimeout(showLoveLine.timer);
       showLoveLine.timer = setTimeout(() => loveLine.classList.remove("show"), duration);
+    }
+
+    const bootSteps = [
+      "检测目标用户：小小薪",
+      "校准专属宇宙坐标",
+      "载入星球粒子核心",
+      "同步想见你的信号",
+      "启动权限已开放"
+    ];
+
+    function runBootProgress() {
+      startBtn.disabled = true;
+      startBtn.textContent = "等待检测完成";
+      let progress = 0;
+      const timer = setInterval(() => {
+        progress = Math.min(100, progress + 2 + Math.random() * 4.2);
+        const shown = Math.floor(progress);
+        bootFill.style.width = shown + "%";
+        bootPercent.textContent = shown + "%";
+        const stepIndex = Math.min(bootSteps.length - 1, Math.floor((shown / 100) * bootSteps.length));
+        bootProgressText.textContent = bootSteps[stepIndex];
+        scanLine.textContent = bootSteps[stepIndex];
+
+        if (progress >= 100) {
+          clearInterval(timer);
+          bootFill.style.width = "100%";
+          bootPercent.textContent = "100%";
+          bootProgressText.textContent = "检测完成｜小小薪专属宇宙已就绪";
+          scanLine.textContent = "检测完成｜小小薪专属宇宙已就绪";
+          startBtn.disabled = false;
+          startBtn.textContent = "启动摄像头";
+          showLoveLine("小小薪专属宇宙已就绪。", 1500);
+        }
+      }, 105);
     }
 
     const loveMessages = [
@@ -636,6 +728,7 @@ button {
     }
 
     addEventListener("resize", resize);
+    runBootProgress();
     animate();
   </script></body>
 </html>

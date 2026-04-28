@@ -105,17 +105,18 @@ canvas {
 
 #loveLine {
   position: fixed;
-  left: 50%;
-  top: 50%;
+  left: max(22px, env(safe-area-inset-left));
+  top: auto;
+  bottom: max(128px, calc(env(safe-area-inset-bottom) + 128px));
   z-index: 7;
-  width: min(88vw, 560px);
-  transform: translate(-50%, -50%) scale(0.96);
+  width: min(82vw, 520px);
+  transform: translateY(8px) scale(0.96);
   opacity: 0;
   pointer-events: none;
-  text-align: center;
-  font-size: clamp(24px, 7vw, 44px);
+  text-align: left;
+  font-size: clamp(22px, 6vw, 38px);
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   line-height: 1.35;
   text-shadow: 0 0 24px rgba(139, 211, 255, 0.65), 0 0 80px rgba(224, 179, 255, 0.35);
   transition: opacity 0.45s ease, transform 0.45s ease;
@@ -123,25 +124,25 @@ canvas {
 
 #loveLine.show {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translateY(0) scale(1);
 }
 
 #scanLine {
   position: fixed;
-  left: 50%;
-  bottom: max(92px, calc(env(safe-area-inset-bottom) + 92px));
+  left: max(14px, env(safe-area-inset-left));
+  bottom: max(22px, calc(env(safe-area-inset-bottom) + 22px));
   z-index: 7;
-  transform: translateX(-50%);
+  transform: none;
   width: min(88vw, 460px);
   padding: 12px 15px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(8, 12, 26, 0.48);
   backdrop-filter: blur(18px);
-  text-align: center;
+  text-align: left;
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   box-shadow: 0 20px 80px rgba(0, 0, 0, 0.28);
   pointer-events: none;
 }
@@ -171,7 +172,7 @@ canvas {
   background: rgba(8, 12, 26, 0.7);
   box-shadow: 0 30px 120px rgba(0, 0, 0, 0.36);
   backdrop-filter: blur(22px);
-  text-align: center;
+  text-align: left;
 }
 
 .start-card h2 {
@@ -187,6 +188,9 @@ canvas {
 }
 
 button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   appearance: none;
   border: 0;
   border-radius: 999px;
@@ -197,10 +201,6 @@ button {
   font-weight: 800;
   letter-spacing: 0.05em;
   box-shadow: 0 16px 42px rgba(139, 211, 255, 0.25);
-}
-
-button:disabled {
-  opacity: 0.55;
 }
 
 #fallback {
@@ -227,7 +227,7 @@ button:disabled {
   <div class="start-card">
     <h2>手势粒子星球</h2>
     <p>点击启动后允许使用前置摄像头。所有识别都在浏览器本地运行，不会上传视频。</p>
-    <button id="startBtn" onclick="document.querySelector('#statusText').textContent='按钮已点击，脚本检查中'; this.textContent='正在检查脚本...'; setTimeout(()=>{ if(!window.cosmosModuleReady){ alert('主脚本没有成功加载。大概率是 CDN import 失败：Three.js 或 MediaPipe 没加载进来。'); } }, 800);">启动摄像头</button>
+    <button id="startBtn">启动摄像头</button>
     <div id="fallback">手机浏览器建议使用 Chrome / Safari，并通过 HTTPS 打开。</div>
   </div>
 </div>
@@ -236,7 +236,6 @@ button:disabled {
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
     import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
-    window.cosmosModuleReady = true;
     const canvas = document.querySelector("#scene");
     const video = document.querySelector("#video");
     const start = document.querySelector("#start");
@@ -248,6 +247,13 @@ button:disabled {
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
     const lerp = (a, b, t) => a + (b - a) * t;
 
+    function showLoveLine(text, duration = 1800) {
+      loveLine.textContent = text;
+      loveLine.classList.add("show");
+      clearTimeout(showLoveLine.timer);
+      showLoveLine.timer = setTimeout(() => loveLine.classList.remove("show"), duration);
+    }
+
     const loveMessages = [
       "你一伸手，宇宙就开始偏心。",
       "今天也捕捉到一颗想见你的星球。",
@@ -255,13 +261,6 @@ button:disabled {
       "你靠近一点，星球会更亮。",
       "这不是普通星球，是我想见你的信号。"
     ];
-
-    function showLoveLine(text, duration = 1800) {
-      loveLine.textContent = text;
-      loveLine.classList.add("show");
-      clearTimeout(showLoveLine.timer);
-      showLoveLine.timer = setTimeout(() => loveLine.classList.remove("show"), duration);
-    }
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x050713, 0.08);
@@ -310,24 +309,13 @@ button:disabled {
         }
       }
 
-      // 某些安卓浏览器在 canvas 里渲染中文字体可能失败，samples 会变成 0，
-      // 这会导致整段 JS 中断，表现就是按钮怎么点都没反应。
-      // 这里加一个兜底：如果中文采样失败，就生成一条发光粒子带。
-      if (samples.length === 0) {
-        for (let i = 0; i < 2600; i++) {
-          const t = i / 2600;
-          const x = 120 + t * 660;
-          const y = h / 2 + Math.sin(t * Math.PI * 8) * 38 + (Math.random() - 0.5) * 22;
-          samples.push([x, y]);
-        }
-      }
-
       for (let i = 0; i < particleCount; i++) {
-        const [x, y] = samples[i % samples.length];
+        const p = samples[i % samples.length] || [w / 2, h / 2];
         const idx = i * 3;
-        textTargets[idx] = (x / w - 0.5) * 6.2 + (Math.random() - 0.5) * 0.025;
-        textTargets[idx + 1] = -(y / h - 0.5) * 2.15 + (Math.random() - 0.5) * 0.025;
-        textTargets[idx + 2] = (Math.random() - 0.5) * 0.38;
+        textTargets[idx] = (p[0] / w - 0.5) * 5.4 + (Math.random() - 0.5) * 0.025;
+        // “想见你”粒子字保持居中，只有 UI 文案不再全部居中。
+        textTargets[idx + 1] = -(p[1] / h - 0.5) * 1.9 + (Math.random() - 0.5) * 0.025;
+        textTargets[idx + 2] = (Math.random() - 0.5) * 0.24;
       }
     }
 
@@ -542,11 +530,12 @@ button:disabled {
         showLoveLine("换一颗更亮的星球给你。", 1400);
       }
 
-      if (openState && !pinchState && now - lastTextTime > 4200) {
+      if (openState && !pinchState && now - lastTextTime > 7200) {
         lastTextTime = now;
         textModeTarget = 1;
-        showLoveLine("粒子正在写给你看。", 1400);
-        setTimeout(() => { textModeTarget = 0; }, 2600);
+        showLoveLine("粒子正在写给你看。", 1800);
+        // 多停一会儿，不然手机上刚聚起来就散了，看不清字。
+        setTimeout(() => { textModeTarget = 0; }, 5600);
       }
 
       lastOpenState = openState;
@@ -558,19 +547,13 @@ button:disabled {
     }
 
     async function startCameraAndHands() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("当前浏览器不支持 getUserMedia，或页面不是 HTTPS / localhost 环境");
-      }
-
-      startBtn.disabled = true;
-      startBtn.textContent = "正在启动...";
-      statusText.textContent = "请求前置摄像头权限";
+      statusText.textContent = "请求前置摄像头";
       scanLine.textContent = "正在请求前置摄像头权限";
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          facingMode: { ideal: "user" },
+          facingMode: "user",
           width: { ideal: 720 },
           height: { ideal: 960 }
         }
@@ -582,7 +565,7 @@ button:disabled {
       start.classList.add("hidden");
       scanLine.textContent = "检测到目标用户：小小薪｜专属宇宙启动完成";
       showLoveLine("今天也捕捉到一颗想见你的星球。", 2200);
-      statusText.textContent = "摄像头已启动，正在加载手势模型";
+      statusText.textContent = "加载手势模型";
 
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
@@ -616,6 +599,8 @@ button:disabled {
 
     startBtn.addEventListener("click", async () => {
       try {
+        startBtn.textContent = "正在启动...";
+        startBtn.disabled = true;
         await startCameraAndHands();
       } catch (error) {
         console.error(error);
@@ -680,8 +665,16 @@ button:disabled {
       geometry.attributes.position.needsUpdate = true;
 
       planet.scale.setScalar(currentScale);
-      planet.rotation.y += 0.0035 + hand.targetRotY * 0.006;
-      planet.rotation.x = lerp(planet.rotation.x, hand.targetRotX + 0.18 * Math.sin(elapsed * 0.35), 0.045);
+
+      // 粒子成字时强制面向屏幕，并暂时降低旋转速度，否则文字可能侧过去看不清。
+      if (textMode > 0.06) {
+        planet.rotation.y = lerp(planet.rotation.y, 0, 0.09);
+        planet.rotation.x = lerp(planet.rotation.x, 0, 0.09);
+      } else {
+        planet.rotation.y += 0.0035 + hand.targetRotY * 0.006;
+        planet.rotation.x = lerp(planet.rotation.x, hand.targetRotX + 0.18 * Math.sin(elapsed * 0.35), 0.045);
+      }
+
       ring.rotation.y += 0.004;
       stars.rotation.y += 0.0008;
 
@@ -698,10 +691,6 @@ button:disabled {
     }
 
     addEventListener("resize", resize);
-
-    statusText.textContent = "等待启动";
-    startBtn.disabled = false;
-    startBtn.textContent = "启动摄像头";
     animate();
   </script></body>
 </html>

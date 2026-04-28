@@ -215,7 +215,7 @@ button {
   <div class="start-card">
     <h2>手势粒子星球</h2>
     <p>点击启动后允许使用前置摄像头。所有识别都在浏览器本地运行，不会上传视频。</p>
-    <button id="startBtn">启动摄像头</button>
+    <button id="startBtn" onclick="window.cosmosEmergencyStart && window.cosmosEmergencyStart()">启动摄像头</button>
     <div id="fallback">手机浏览器建议使用 Chrome / Safari，并通过 HTTPS 或 localhost 打开。</div>
   </div>
 </div>
@@ -226,19 +226,31 @@ button {
     window.cosmosPreGrantedStream = null;
     window.cosmosPreGranting = false;
     window.cosmosPreGrantError = null;
+    window.cosmosEmergencyStarted = false;
 
     const preStartBtn = document.querySelector("#startBtn");
     const preStatusText = document.querySelector("#statusText");
     const preVideo = document.querySelector("#video");
+    const preStart = document.querySelector("#start");
+    const preScanLine = document.querySelector("#scanLine");
 
-    preStartBtn?.addEventListener("click", async () => {
-      if (window.cosmosPreGrantedStream || window.cosmosPreGranting) return;
+    window.cosmosEmergencyStart = async function cosmosEmergencyStart() {
+      if (window.cosmosEmergencyStarted) return;
+      window.cosmosEmergencyStarted = true;
       window.cosmosPreGranting = true;
+
       try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error("当前浏览器不支持摄像头权限，请用 Chrome / Safari 打开 HTTPS 页面");
+        preStatusText.textContent = "按钮已触发，正在请求摄像头";
+        preScanLine.textContent = "按钮已触发｜正在请求前置摄像头权限";
+
+        if (!window.isSecureContext) {
+          throw new Error("当前不是安全上下文，请确认地址栏是 https://liranlir.github.io/cosmos/cosmos.html");
         }
-        preStatusText.textContent = "正在请求前置摄像头权限";
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("当前浏览器没有开放 getUserMedia，请检查 Chrome 的相机权限");
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
@@ -247,17 +259,35 @@ button {
             height: { ideal: 960 }
           }
         });
+
         window.cosmosPreGrantedStream = stream;
         preVideo.srcObject = stream;
-        await preVideo.play();
-        preStatusText.textContent = "摄像头已授权，正在加载宇宙";
+
+        // 先立刻进入主界面，不要等 video.play() 或手势模型。
+        // 有些手机浏览器的 play() / CDN 加载会卡住，但摄像头其实已经授权了。
+        preStart.classList.add("hidden");
+        preStatusText.textContent = "摄像头已授权，正在加载手势模型";
+        preScanLine.textContent = "摄像头已授权｜正在加载专属宇宙";
+
+        try {
+          await preVideo.play();
+        } catch (playError) {
+          console.warn("video.play() was blocked or delayed", playError);
+        }
       } catch (error) {
         window.cosmosPreGrantError = error;
-        preStatusText.textContent = "摄像头请求失败：" + (error?.message || error);
+        window.cosmosEmergencyStarted = false;
+        preStatusText.textContent = "摄像头请求失败";
+        preScanLine.textContent = "错误：" + (error?.name || "Error") + "｜" + (error?.message || error);
+        alert("摄像头请求失败：
+" + (error?.name || "Error") + "
+" + (error?.message || error));
       } finally {
         window.cosmosPreGranting = false;
       }
-    }, { once: true });
+    };
+
+    preStartBtn?.addEventListener("click", window.cosmosEmergencyStart, { once: false });
   </script>  <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
     import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
@@ -593,24 +623,41 @@ button {
       showLoveLine("今天也捕捉到一颗想见你的星球。", 2200);
       statusText.textContent = "摄像头已启动，正在加载手势模型";
 
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-      );
-
-      handLandmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        numHands: 1,
-        minHandDetectionConfidence: 0.55,
-        minHandPresenceConfidence: 0.55,
-        minTrackingConfidence: 0.55
+      const modelTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("手势模型加载超时，已切换触摸模式")), 9000);
       });
 
-      statusText.textContent = "正在识别手势";
-      requestAnimationFrame(detectHands);
+      try {
+        const modelTask = (async () => {
+          const vision = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+          );
+
+          handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+              delegate: "GPU"
+            },
+            runningMode: "VIDEO",
+            numHands: 1,
+            minHandDetectionConfidence: 0.55,
+            minHandPresenceConfidence: 0.55,
+            minTrackingConfidence: 0.55
+          });
+        })();
+
+        await Promise.race([modelTask, modelTimeout]);
+        statusText.textContent = "正在识别手势";
+        scanLine.textContent = "手势识别已启动｜张开手试试看";
+        showLoveLine("专属宇宙已校准。", 1600);
+        requestAnimationFrame(detectHands);
+      } catch (modelError) {
+        console.warn(modelError);
+        manualFallback = true;
+        statusText.textContent = "手势模型加载慢，已切换触摸模式";
+        scanLine.textContent = "触摸模式｜按住屏幕让星球扩散";
+        showLoveLine("手势模型有点慢，先用触摸控制。", 2200);
+      }
     }
 
     function detectHands() {
@@ -624,12 +671,17 @@ button {
 
     startBtn.addEventListener("click", async () => {
       try {
+        if (!window.cosmosPreGrantedStream) {
+          await window.cosmosEmergencyStart?.();
+        }
         await startCameraAndHands();
       } catch (error) {
         console.error(error);
         manualFallback = true;
         start.classList.add("hidden");
         statusText.textContent = "摄像头不可用，已切换触摸模式";
+        scanLine.textContent = "摄像头不可用｜已切换触摸模式";
+        showLoveLine("摄像头没打开，但宇宙还在。", 2200);
       }
     });
 

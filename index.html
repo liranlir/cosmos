@@ -259,7 +259,8 @@ button {
       "今天也捕捉到一颗想见你的星球。",
       "警告：检测到我又想你了。",
       "你靠近一点，星球会更亮。",
-      "这不是普通星球，是我想见你的信号。"
+      "这不是普通星球，是我想见你的信号。",
+      "你辛苦了。"
     ];
 
     const scene = new THREE.Scene();
@@ -279,45 +280,12 @@ button {
     const positions = new Float32Array(particleCount * 3);
     const targets = new Float32Array(particleCount * 3);
     const randoms = new Float32Array(particleCount * 3);
-    const textTargets = new Float32Array(particleCount * 3);
     const sizes = new Float32Array(particleCount);
     const colors = new Float32Array(particleCount * 3);
 
     const colorA = new THREE.Color("#80dfff");
     const colorB = new THREE.Color("#f0d2ff");
     const colorC = new THREE.Color("#6f8cff");
-
-    function makeTextTargets(text = "想见你") {
-      const c = document.createElement("canvas");
-      const ctx = c.getContext("2d", { willReadFrequently: true });
-      const w = 900;
-      const h = 320;
-      c.width = w;
-      c.height = h;
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "white";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.font = "900 150px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-      ctx.fillText(text, w / 2, h / 2);
-
-      const img = ctx.getImageData(0, 0, w, h).data;
-      const samples = [];
-      for (let y = 0; y < h; y += 5) {
-        for (let x = 0; x < w; x += 5) {
-          if (img[(y * w + x) * 4 + 3] > 80) samples.push([x, y]);
-        }
-      }
-
-      for (let i = 0; i < particleCount; i++) {
-        const p = samples[i % samples.length] || [w / 2, h / 2];
-        const idx = i * 3;
-        textTargets[idx] = (p[0] / w - 0.5) * 5.4 + (Math.random() - 0.5) * 0.025;
-        // “想见你”粒子字保持居中，只有 UI 文案不再全部居中。
-        textTargets[idx + 1] = -(p[1] / h - 0.5) * 1.9 + (Math.random() - 0.5) * 0.025;
-        textTargets[idx + 2] = (Math.random() - 0.5) * 0.24;
-      }
-    }
 
     for (let i = 0; i < particleCount; i++) {
       const u = Math.random();
@@ -355,7 +323,6 @@ button {
       colors[idx + 2] = mixed.b;
     }
 
-    makeTextTargets("想见你");
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -464,12 +431,9 @@ button {
     let handLandmarker = null;
     let lastVideoTime = -1;
     let manualFallback = false;
-    let textMode = 0;
-    let textModeTarget = 0;
     let lastOpenState = false;
     let lastPinchState = false;
     let lastWaveTime = 0;
-    let lastTextTime = 0;
 
     function distance(a, b) {
       const dx = a.x - b.x;
@@ -528,14 +492,6 @@ button {
       if (Math.abs(hand.x - 0.5) > 0.34 && now - lastWaveTime > 1400) {
         lastWaveTime = now;
         showLoveLine("换一颗更亮的星球给你。", 1400);
-      }
-
-      if (openState && !pinchState && now - lastTextTime > 7200) {
-        lastTextTime = now;
-        textModeTarget = 1;
-        showLoveLine("粒子正在写给你看。", 1800);
-        // 多停一会儿，不然手机上刚聚起来就散了，看不清字。
-        setTimeout(() => { textModeTarget = 0; }, 5600);
       }
 
       lastOpenState = openState;
@@ -642,7 +598,6 @@ button {
 
       currentBurst = lerp(currentBurst, hand.targetBurst, 0.065);
       currentScale = lerp(currentScale, hand.targetScale, 0.07);
-      textMode = lerp(textMode, textModeTarget, 0.065);
 
       const pos = geometry.attributes.position.array;
       for (let i = 0; i < particleCount; i++) {
@@ -650,13 +605,9 @@ button {
         const wave = 0.04 * Math.sin(elapsed * 2.3 + targets[idx] * 2.2 + targets[idx + 1] * 1.7);
         const burst = currentBurst + wave;
 
-        const planetX = lerp(targets[idx], randoms[idx], burst);
-        const planetY = lerp(targets[idx + 1], randoms[idx + 1], burst);
-        const planetZ = lerp(targets[idx + 2], randoms[idx + 2], burst);
-
-        const tx = lerp(planetX, textTargets[idx], textMode);
-        const ty = lerp(planetY, textTargets[idx + 1], textMode);
-        const tz = lerp(planetZ, textTargets[idx + 2], textMode);
+        const tx = lerp(targets[idx], randoms[idx], burst);
+        const ty = lerp(targets[idx + 1], randoms[idx + 1], burst);
+        const tz = lerp(targets[idx + 2], randoms[idx + 2], burst);
 
         pos[idx] = lerp(pos[idx], tx, 0.055);
         pos[idx + 1] = lerp(pos[idx + 1], ty, 0.055);
@@ -666,14 +617,8 @@ button {
 
       planet.scale.setScalar(currentScale);
 
-      // 粒子成字时强制面向屏幕，并暂时降低旋转速度，否则文字可能侧过去看不清。
-      if (textMode > 0.06) {
-        planet.rotation.y = lerp(planet.rotation.y, 0, 0.09);
-        planet.rotation.x = lerp(planet.rotation.x, 0, 0.09);
-      } else {
-        planet.rotation.y += 0.0035 + hand.targetRotY * 0.006;
-        planet.rotation.x = lerp(planet.rotation.x, hand.targetRotX + 0.18 * Math.sin(elapsed * 0.35), 0.045);
-      }
+      planet.rotation.y += 0.0035 + hand.targetRotY * 0.006;
+      planet.rotation.x = lerp(planet.rotation.x, hand.targetRotX + 0.18 * Math.sin(elapsed * 0.35), 0.045);
 
       ring.rotation.y += 0.004;
       stars.rotation.y += 0.0008;
